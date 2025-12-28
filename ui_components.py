@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 
-def render_big_road(history, mini=False):
+def render_big_road(history, mini=False, theme='dark'):
     """เรนเดอร์ตาราง Big Road พร้อมรองรับ Mobile Scrolling"""
     ROWS = 6
     min_cols = 30 if not mini else 12
@@ -59,28 +59,44 @@ def render_big_road(history, mini=False):
             if col < COLS: grid[row][col] = {'color': color}
             prev_winner = winner
 
-    cell_size = "28px" if not mini else "18px"
-    circle_size = "20px" if not mini else "14px"
+    cell_size = "30px" if not mini else "18px"
+    circle_size = "22px" if not mini else "14px"
     font_size = "14px" if not mini else "11px"
     
-    bg_color = "#ffffff" 
-    border_color = "#e0e0e0"
+    # Theme Logic
+    if theme == 'light':
+        # Original Style: Dark Container, White Table
+        bg_color = "#ffffff"
+        border_color = "#e0e0e0"
+        container_bg = "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)" if not mini else "transparent"
+        text_color = "white"
+        stats_bg = "rgba(255,255,255,0.05)"
+        stats_border = "#333"
+        stats_label_color = "#ccc"
+    else: # Dark (Default)
+        # New Style: Dark Container, Dark Table
+        bg_color = "#2d2d44" 
+        border_color = "#444"
+        container_bg = "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)" if not mini else "transparent"
+        text_color = "white"
+        stats_bg = "rgba(255,255,255,0.05)"
+        stats_border = "#333"
+        stats_label_color = "#ccc"
     
-    container_bg = "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)" if not mini else "transparent"
     container_padding = "15px" if not mini else "0"
     container_radius = "12px" if not mini else "0"
     
     html = f"""
 <style>
-.baccarat-container {{ background: {container_bg}; padding: {container_padding}; border-radius: {container_radius}; margin-bottom: 15px; color: white; }}
-.stats-bar {{ display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(255,255,255,0.05); border-radius: 8px; margin-bottom: 10px; border: 1px solid #333; flex-wrap: wrap; gap: 5px; }}
-.stat-item {{ text-align: center; color: #ccc; font-size: {font_size}; min-width: 40px; }}
-.stat-value {{ font-size: {20 if not mini else 12}px; font-weight: bold; color: #fff; }}
+.baccarat-container {{ background: {container_bg}; padding: {container_padding}; border-radius: {container_radius}; margin-bottom: 15px; color: {text_color}; }}
+.stats-bar {{ display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: {stats_bg}; border-radius: 8px; margin-bottom: 10px; border: 1px solid {stats_border}; flex-wrap: wrap; gap: 5px; }}
+.stat-item {{ text-align: center; color: {stats_label_color}; font-size: {font_size}; min-width: 40px; }}
+.stat-value {{ font-size: {20 if not mini else 12}px; font-weight: bold; color: {text_color}; }}
 .stat-label {{ font-size: 10px; opacity: 0.6; }}
 /* Mobile Scrolling */
 .grid-wrapper {{ overflow-x: auto; background: {bg_color}; border-radius: 4px; padding: 2px; border: 1px solid {border_color}; width: 100%; box-sizing: border-box; -webkit-overflow-scrolling: touch; }}
-.big-road-table {{ border-collapse: collapse; margin: 0 auto; min-width: 100%; }}
-.big-road-table td {{ width: {cell_size}; height: {cell_size}; border: 1px solid {border_color}; padding: 0; position: relative; }}
+.big-road-table {{ border-collapse: collapse; margin: 0 auto; min-width: 100%; table-layout: fixed; }}
+.big-road-table td {{ width: {cell_size}; height: {cell_size}; border: 1px solid {border_color}; padding: 0; position: relative; min-width: {cell_size}; }}
 .circle {{ width: {circle_size}; height: {circle_size}; border-radius: 50%; margin: auto; border-width: {3 if not mini else 2}px; border-style: solid; box-sizing: border-box; position: relative; background: transparent; }}
 .circle.blue {{ border-color: #2196F3; }}
 .circle.red {{ border-color: #f44336; }}
@@ -242,3 +258,57 @@ def show_stats_modal(patterns, data_folder):
         st.dataframe(pd.DataFrame(results), use_container_width=True)
         st.success(f"วิเคราะห์เสร็จสิ้น {len(patterns)} รายการ")
     _render(patterns, data_folder)
+
+def show_validation_panel(module_stats, shoe_type_info):
+    """แสดงผล Validation Monitor & Shoe Type"""
+    shoe_name, shoe_icon = shoe_type_info
+    
+    st.markdown(f"""
+<div style="background:rgba(255,255,255,0.05); padding:10px; border-radius:10px; border:1px solid #444; margin-bottom:15px;">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div style="color:#aaa; font-size:12px;">SHOE TYPE</div>
+            <div style="font-weight:bold; color:#fff;">{shoe_icon} {shoe_name}</div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+    
+    if not module_stats:
+        return
+
+    # Find MVP
+    best_mod = None
+    best_rate = -1
+    
+    rows = []
+    emojis = {'historian': '📜', 'technician': '🛣️', 'statistician': '🧠', 'expert': '🎲'}
+    
+    for mod, stats in module_stats.items():
+        total = stats['total']
+        wins = stats['wins']
+        rate = (wins/total*100) if total > 0 else 0
+        
+        if total >= 3 and rate > best_rate:
+            best_rate = rate
+            best_mod = mod
+            
+        color = "#4CAF50" if rate >= 50 else "#f44336"
+        rows.append(f"""
+<div style="display:flex; justify-content:space-between; margin-bottom:4px; font-size:13px;">
+    <span>{emojis.get(mod, '')} {mod.capitalize()}</span>
+    <span style="color:{color}">{rate:.0f}% <span style="opacity:0.5; font-size:10px;">({wins}/{total})</span></span>
+</div>
+""")
+    
+    st.markdown(f"""
+<div style="background:#1e1e24; padding:12px; border-radius:10px; border:1px solid #333;">
+    <div style="font-size:12px; color:#aaa; margin-bottom:8px;">MODULE ACCURACY (Live)</div>
+    {''.join(rows)}
+</div>
+""", unsafe_allow_html=True)
+    
+    if best_mod:
+        st.markdown(f"""
+<div style="margin-top:10px; background:linear-gradient(45deg, #2196F3, #21CBF3); padding:8px; border-radius:8px; color:white; text-align:center; font-weight:bold; font-size:14px;">
+    🏆 MVP: {best_mod.title()} ({best_rate:.0f}%)
+</div>
+""", unsafe_allow_html=True)

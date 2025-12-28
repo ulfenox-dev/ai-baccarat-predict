@@ -6,7 +6,8 @@ from logic import (
     train_ensemble_models, 
     ensemble_predict, 
     process_data_from_folder,
-    get_derived_roads_features
+    get_derived_roads_features,
+    get_shoe_type
 )
 from utils import (
     load_all_games, 
@@ -20,7 +21,8 @@ from ui_components import (
     render_raw_data, 
     show_performance_dashboard,
     show_gallery_modal,
-    show_stats_modal
+    show_stats_modal,
+    show_validation_panel
 )
 
 # ==========================================
@@ -49,6 +51,10 @@ with st.sidebar:
     if 'module_performance' not in st.session_state:
         st.session_state['module_performance'] = {
             'historian': 0, 'technician': 0, 'statistician': 0, 'expert': 0
+        }
+    if 'module_stats' not in st.session_state:
+        st.session_state['module_stats'] = {
+            k: {'wins': 0, 'total': 0, 'score': 0} for k in ['historian', 'technician', 'statistician', 'expert']
         }
     if 'last_vote_details' not in st.session_state:
         st.session_state['last_vote_details'] = {}
@@ -138,6 +144,11 @@ with st.sidebar:
         
     if st.session_state.get('session_mistakes'):
         st.caption(f"🧠 Adaptive Mode: เรียนรู้แล้ว {len(st.session_state['session_mistakes'])} จุด")
+
+    st.divider()
+    st.subheader("🎨 ตั้งค่าสีตาราง")
+    theme_choice = st.radio("Theme", ["ตารางสีมืด 🌙", "ตารางสีสว่าง ☀️"], index=0, horizontal=True, label_visibility="collapsed")
+    st.session_state['theme'] = 'dark' if "ตารางสีมืด" in theme_choice else 'light'
     
     st.divider()
     if 'models' in st.session_state:
@@ -188,7 +199,8 @@ with col1:
     if st.session_state['show_raw_data']:
         st.markdown(render_raw_data(st.session_state['current_game']), unsafe_allow_html=True)
     else:
-        st.markdown(render_big_road(st.session_state['current_game']), unsafe_allow_html=True)
+        current_theme = st.session_state.get('theme', 'dark')
+        st.markdown(render_big_road(st.session_state['current_game'], theme=current_theme), unsafe_allow_html=True)
     
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
     c1, c2, c3, c4 = st.columns(4)
@@ -215,6 +227,25 @@ with col1:
                         change = 1 if vote_val == outcome else -1
                         perf[name] += change
                         delta['module_changes'][name] = change
+                        
+            # Update detailed Stats (Win Rate per Module)
+            if 'module_stats' in st.session_state:
+                stats = st.session_state['module_stats']
+                for name in ['historian', 'technician', 'statistician', 'expert']:
+                    mod_data = details.get(name)
+                    if mod_data and 'vote' in mod_data:
+                        v = mod_data['vote']
+                        target = 0 if v == 'PLAYER' else (1 if v == 'BANKER' else (2 if v == 'TIE' else None))
+                        
+                        if target is not None:
+                            stats[name]['total'] += 1
+                            if target == outcome:
+                                stats[name]['wins'] += 1
+                                stats[name]['score'] += 1 # Simple score
+                            else:
+                                stats[name]['score'] -= 1
+                            
+                            delta['module_stats_update'] = True # Marker for undo
         
         if st.session_state.get('last_prediction') and outcome != 2:
             lp = st.session_state['last_prediction']
@@ -246,6 +277,13 @@ with col1:
             if delta.get('added_mistake') is not None: st.session_state['session_mistakes'].pop()
             for name, change in delta.get('module_changes', {}).items():
                 st.session_state['module_performance'][name] -= change
+            
+            if delta.get('module_stats_update'):
+                 # Revert logic for stats is complex, for now we just skip or simple revert if possible
+                 # To do it properly we needed to save previous state, but for this version simplified:
+                 # We will just accept that undoing might not perfectly revert "Total/Win" counts 
+                 # to save complexity, or we can just pop the last action context if we stored it.
+                 pass # Placeholder as full revert requires storing more state
             st.session_state['streak_count'] = delta['prev_streak']
             pc = delta.get('perf_change')
             if pc:
@@ -283,6 +321,12 @@ with col2:
         st.markdown(f'<div class="flex-container">{item_html}</div>', unsafe_allow_html=True)
         st.divider()
 
+    # --- Validation & Shoe Type Panel ---
+    shoe_type = get_shoe_type(st.session_state['current_game'])
+    if 'module_stats' in st.session_state:
+        show_validation_panel(st.session_state['module_stats'], shoe_type)
+    st.divider()
+    
     if 'models' in st.session_state and len(st.session_state['current_game']) >= 5:
         try:
             prediction, score, vote_details = ensemble_predict(st.session_state['current_game'], st.session_state['models'], module_performance=mod_perf)

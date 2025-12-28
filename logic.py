@@ -95,6 +95,34 @@ def get_derived_roads_features(history):
         'cockroach_seq': cockroach
     }
 
+def get_shoe_type(history):
+    """Classify the current shoe type based on history"""
+    if not history or len(history) < 5:
+        return "Waiting...", "⏳"
+        
+    derived = get_derived_roads_features(history)
+    stability = derived['overall_stability']
+    
+    # Check for Ping Pong (Choppy)
+    last_6 = [h for h in history[-6:] if h != 2]
+    is_pingpong = False
+    if len(last_6) >= 4:
+        switches = 0
+        for i in range(1, len(last_6)):
+            if last_6[i] != last_6[i-1]:
+                switches += 1
+        if switches >= len(last_6) - 1:
+            is_pingpong = True
+            
+    if is_pingpong:
+        return "Ping Pong (Choppy)", "🏓"
+    elif stability > 0.6:
+        return "Stable (Mangkorn)", "🐉"
+    elif stability < 0.4:
+         return "Volatile (Hew)", "🎢"
+    else:
+        return "Normal", "⚖️"
+
 def analyze_road_quality(road_sequence):
     """วิเคราะห์คุณภาพของเค้าไพ่ (Pattern Analysis)"""
     if not road_sequence or len(road_sequence) < 4:
